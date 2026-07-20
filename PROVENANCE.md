@@ -46,9 +46,27 @@ needed; not yet justified by a real requirement.
 
 ## `modules/` — kept only
 
-- `freetype`, `regex`, `glslang`, `text_server_adv`, `svg`
+- `freetype`, `regex`, `glslang`, `text_server_adv`, `svg`, `sandbox`
 - scaffolding: `modules_builders.py`, `register_module_types.h`,
   `SCsub`
+
+`sandbox` is `libriscv/godot-sandbox` — the same libriscv substrate
+`weft-warp-loop` already vendors (`flow-toolchain/thirdparty/libriscv`)
+and already runs the s7 Lisp-1 scripting tier in, just wearing Godot's
+own GDExtension/Variant-ABI/resource-loading clothes. Initially
+deleted on the assumption that not using GDScript meant not needing
+anything sandbox-adjacent either; that was wrong — this is the
+closest thing to what this project already runs, and could let the
+adapter host the already-built, already-verified `s7_guest.elf`
+through Godot's own proven loading mechanism instead of writing new
+FFI/embedding glue from scratch. Its own `tests/` and
+`thirdparty/libriscv/tests/` (Catch2 suite) were dropped only for
+Windows path-length limits during the copy, not for relevance - not a
+"no need for this" judgment call like the others below. Its own
+vendored `thirdparty/libriscv/` is a separate copy from
+`weft-warp-loop`'s (worth reconciling into one copy later - flagged,
+not acted on, since that would be a code change, not a keep/delete
+one).
 
 Deleted (all the rest): `astcenc`, `basis_universal`, `bcdec`,
 `betsy`, `bmp`, `camera`, `cassie`, `csg`, `cvtt`, `dds`, `enet`,
@@ -59,7 +77,7 @@ Deleted (all the rest): `astcenc`, `basis_universal`, `bcdec`,
 `mp3`, `msdfgen`, `multiplayer`, `multiplayer_fabric`,
 `multiplayer_fabric_asset`, `native_media`, `navigation_2d`,
 `navigation_3d`, `noise`, `objectdb_profiler`, `ogg`, `open_telemetry`,
-`openxr`, `raycast`, `sandbox`, `speech`, `sqlite`, `text_server_fb`,
+`openxr`, `raycast`, `speech`, `sqlite`, `text_server_fb`,
 `tga`, `theora`, `tinyexr`, `upnp`, `vhacd`, `visual_shader`, `vorbis`,
 `webp`, `webrtc`, `websocket`, `webxr`, `xatlas_unwrap`, `xr_grid`,
 `zip`.
@@ -72,13 +90,12 @@ this adapter's own connection reuses `fanout_load_client`'s existing
 QUIC/ZPB code directly, not Godot's networking stack. No `mono`
 (C#) — not used. No `gdscript` — `weft-warp-loop` already has its own
 scripting system (the s7 Lisp-1 sandboxed in libriscv, ADR 0006/0011/
-0028); this adapter has no reason to run a second, separate scripting
-language on top of it. No VR/XR modules (`openxr`, `webxr`,
-`mobile_vr`, `xr_grid`) — not in scope for this pass. This org's own
-additions (`cassie`, `http3`, `sandbox`, `multiplayer_fabric*`,
-`lasso`, `keychain`, `native_media`, `open_telemetry`, `speech`,
-`sqlite`) are excluded for now too — real candidates for later, not
-yet justified here.
+0028), now reachable through the kept `sandbox` module instead. No
+VR/XR modules (`openxr`, `webxr`, `mobile_vr`, `xr_grid`) — not in
+scope for this pass. This org's other own additions (`cassie`,
+`http3`, `multiplayer_fabric*`, `lasso`, `keychain`, `native_media`,
+`open_telemetry`, `speech`, `sqlite`) are excluded for now too — real
+candidates for later, not yet justified here.
 
 ## `misc/dist/` — kept only
 
