@@ -128,7 +128,18 @@ Deleted (all the rest): `bmp`, `camera`, `cassie`, `csg`, `dds`,
 Reasoning: no Godot-own networking (`enet`, `websocket`, `webrtc`,
 `multiplayer`, `upnp`, `http3`) — this adapter's own connection reuses
 `fanout_load_client`'s existing QUIC/ZPB code directly, not Godot's
-networking stack. No `mono` (C#) — not used. No `gdscript` —
+networking stack. `mbedtls` was also tried and reverted for the same
+reason, deliberately, not just left out by default: it's the
+concrete backend `core/io/stream_peer_tls.*`'s and `Crypto::create`'s
+abstract interfaces dispatch to (same `_create_func` pattern as
+`RendererCompositor`) — without it, HTTPS/TLS genuinely has no
+implementation in this tree, which was briefly considered relevant
+for loading assets from a CDN (`fabric-flow-adapters`, per
+`v-sekai-multiplayer-fabric/zone-backend`'s casync/manifest asset
+pipeline) before landing on: `weft-warp-loop` already has real
+networking (QUIC/ZPB); asset/CDN delivery is that project's concern
+to solve, not something this adapter needs its own independent
+HTTPS/TLS stack for. No `mono` (C#) — not used. No `gdscript` —
 `weft-warp-loop` already has its own scripting system (the s7 Lisp-1
 sandboxed in libriscv, ADR 0006/0011/0028), now reachable through the
 kept `sandbox` module instead. No VR/XR modules (`openxr`, `webxr`,
