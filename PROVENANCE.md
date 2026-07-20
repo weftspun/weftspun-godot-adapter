@@ -46,7 +46,9 @@ needed; not yet justified by a real requirement.
 
 ## `modules/` — kept only
 
-- `freetype`, `regex`, `glslang`, `text_server_adv`, `svg`, `sandbox`
+- `freetype`, `regex`, `glslang`, `text_server_adv`, `svg`, `sandbox`,
+  `jolt_physics`, `sqlite`, `open_telemetry`, `astcenc`,
+  `basis_universal`, `bcdec`, `betsy`, `cvtt`, `etcpak`
 - scaffolding: `modules_builders.py`, `register_module_types.h`,
   `SCsub`
 
@@ -59,43 +61,88 @@ anything sandbox-adjacent either; that was wrong — this is the
 closest thing to what this project already runs, and could let the
 adapter host the already-built, already-verified `s7_guest.elf`
 through Godot's own proven loading mechanism instead of writing new
-FFI/embedding glue from scratch. Its own `tests/` and
-`thirdparty/libriscv/tests/` (Catch2 suite) were dropped only for
-Windows path-length limits during the copy, not for relevance - not a
-"no need for this" judgment call like the others below. Its own
-vendored `thirdparty/libriscv/` is a separate copy from
-`weft-warp-loop`'s (worth reconciling into one copy later - flagged,
-not acted on, since that would be a code change, not a keep/delete
-one).
+FFI/embedding glue from scratch. Its own vendored
+`thirdparty/libriscv/` is a separate copy from `weft-warp-loop`'s
+(worth reconciling into one copy later - flagged, not acted on, since
+that would be a code change, not a keep/delete one).
 
-Deleted (all the rest): `astcenc`, `basis_universal`, `bcdec`,
-`betsy`, `bmp`, `camera`, `cassie`, `csg`, `cvtt`, `dds`, `enet`,
-`etcpak`, `fbx`, `gdscript`, `gltf`, `godot_physics_2d`,
+`jolt_physics` — kept per direct instruction, reversing the earlier
+"no physics modules, simulation is server-authoritative" call below.
+`weft-warp-loop`'s own authoritative simulation in `fanout-core` is
+unaffected either way; this is presumably for local/cosmetic physics
+the adapter itself wants (ragdolls, debris, cloth) that don't need to
+be authoritative. `godot_physics_2d`/`godot_physics_3d` (the built-in
+alternative physics backends) stay deleted — Jolt is the sole physics
+backend kept.
+
+`sqlite` — kept as `open_telemetry`'s real build dependency (its
+`SCsub` prepends `modules/sqlite/{thirdparty,src}` to its include
+path), not evaluated independently. 9.6M on its own, the single
+largest module kept.
+
+`open_telemetry` — kept per direct instruction.
+
+`astcenc`, `basis_universal`, `bcdec`, `betsy`, `cvtt`, `etcpak` —
+kept per direct instruction (the GPU texture compression/transcoding
+cluster: ASTC, Basis Universal supercompression, BC/DXT decode
+(`bcdec`), a compute-shader-based BC/ETC encoder (`betsy`), a
+BC6/BC7-focused encoder (`cvtt`), and a fast ETC1/ETC2 encoder
+(`etcpak`) - the runtime texture-decoding side of what a real 3D
+client needs regardless of whether it's also doing asset import).
+Pulled their real `thirdparty/` deps in alongside them: root-level
+`thirdparty/astcenc`, `thirdparty/basis_universal`,
+`thirdparty/cvtt`, `thirdparty/etcpak` (checked each module's own
+`SCsub` for its actual thirdparty path rather than assuming which
+ones need one - `bcdec` and `betsy` don't reference an external
+`thirdparty/` tree, so nothing extra was fetched for them).
+`basis_universal`'s `config.py` also declares a `tinyexr` dependency,
+but only `if env.editor_build` (encoder-side, editor/import-time
+only) - not applicable to a non-editor runtime build, so `tinyexr`
+was deliberately not pulled in for this.
+
+`http3` was tried and dropped again: its `SCsub` depends on
+root-level `thirdparty/picoquic`, `thirdparty/picotls`,
+`thirdparty/mbedtls`, and `thirdparty/webtransportd` (the exact same
+libraries `weft-warp-loop`'s own `flow-toolchain/thirdparty` already
+vendors for its zone server) - genuinely tempting for protocol
+consistency, but the adapter's own networking design (ADR 0050) reuses
+`fanout_load_client`'s existing C++ QUIC/ZPB connection code directly,
+not a Godot module, so this stays out. Not copied into this tree at
+all (not even build-flag-disabled) - if reconsidered later, it needs
+re-fetching root `thirdparty/{picoquic,picotls,mbedtls,webtransportd}`
+alongside it, since none of those are otherwise present here.
+
+Deleted (all the rest): `bmp`, `camera`, `cassie`, `csg`, `dds`,
+`enet`, `fbx`, `gdscript`, `gltf`, `godot_physics_2d`,
 `godot_physics_3d`, `gridmap`, `hdr`, `http3`, `interactive_music`,
-`jolt_physics`, `jpg`, `jsonrpc`, `keychain`, `ktx`, `lasso`,
+`jpg`, `jsonrpc`, `keychain`, `ktx`, `lasso`,
 `lightmapper_rd`, `mbedtls`, `meshoptimizer`, `mobile_vr`, `mono`,
 `mp3`, `msdfgen`, `multiplayer`, `multiplayer_fabric`,
 `multiplayer_fabric_asset`, `native_media`, `navigation_2d`,
-`navigation_3d`, `noise`, `objectdb_profiler`, `ogg`, `open_telemetry`,
-`openxr`, `raycast`, `speech`, `sqlite`, `text_server_fb`,
+`navigation_3d`, `noise`, `objectdb_profiler`, `ogg`,
+`openxr`, `raycast`, `speech`, `text_server_fb`,
 `tga`, `theora`, `tinyexr`, `upnp`, `vhacd`, `visual_shader`, `vorbis`,
 `webp`, `webrtc`, `websocket`, `webxr`, `xatlas_unwrap`, `xr_grid`,
 `zip`.
 
-Reasoning: no physics modules (`godot_physics_2d/3d`, `jolt_physics`)
-— simulation is authoritative server-side in `weft-warp-loop`'s
-`fanout-core`, not client-side Godot physics (ADR 0051). No Godot-own
-networking (`enet`, `websocket`, `webrtc`, `multiplayer`, `upnp`) —
-this adapter's own connection reuses `fanout_load_client`'s existing
-QUIC/ZPB code directly, not Godot's networking stack. No `mono`
-(C#) — not used. No `gdscript` — `weft-warp-loop` already has its own
-scripting system (the s7 Lisp-1 sandboxed in libriscv, ADR 0006/0011/
-0028), now reachable through the kept `sandbox` module instead. No
-VR/XR modules (`openxr`, `webxr`, `mobile_vr`, `xr_grid`) — not in
-scope for this pass. This org's other own additions (`cassie`,
-`http3`, `multiplayer_fabric*`, `lasso`, `keychain`, `native_media`,
-`open_telemetry`, `speech`, `sqlite`) are excluded for now too — real
-candidates for later, not yet justified here.
+Reasoning: no Godot-own networking (`enet`, `websocket`, `webrtc`,
+`multiplayer`, `upnp`, `http3`) — this adapter's own connection reuses
+`fanout_load_client`'s existing QUIC/ZPB code directly, not Godot's
+networking stack. No `mono` (C#) — not used. No `gdscript` —
+`weft-warp-loop` already has its own scripting system (the s7 Lisp-1
+sandboxed in libriscv, ADR 0006/0011/0028), now reachable through the
+kept `sandbox` module instead. No VR/XR modules (`openxr`, `webxr`,
+`mobile_vr`, `xr_grid`) — not in scope for this pass. This org's other
+own additions (`cassie`, `multiplayer_fabric*`, `lasso`, `keychain`,
+`native_media`, `speech`) are excluded for now too — real candidates
+for later, not yet justified here.
+
+## `thirdparty/` — kept only
+
+- `astcenc`, `basis_universal`, `cvtt`, `etcpak` — the real build
+  dependencies of the modules kept above, nothing else. Not a general
+  `thirdparty/` checkout; each entry here exists only because a kept
+  module's own `SCsub` references it directly.
 
 ## `misc/dist/` — kept only
 
